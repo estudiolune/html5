@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <style>
+            body{
+            padding: 0;
+                margin: 0;
+            }
+        </style>
+    </head>
+    
+<body>
+    <canvas id="gameCanvas" onclick="generateMaze()" width="800" height="600">
+        Your bROWSer does not support the HTML5 canvas tag.
+    </canvas>
+
+    <script>
+        // constants
+        var COLS = 26;
+        var ROWS = 19;
+        var SIZE = 30;
+        
+        // tiles matrix
+        var tiles = [];
+
+        // get availables neighbours
+        function getAvailable(i,j) {
+            var available = [];
+            var len = tiles[i][j].neighbours.length;
+            for (var ix=0; ix<len; ix++) {
+                var t = tiles[i][j].neighbours[ix];
+                if (!t.visited)
+                    available.push( t );
+            }
+            return available;
+        }
+
+        // maze creation
+        function maze(i,j) {
+            // set tile as visited
+            tiles[i][j].visited = true;
+
+            // get availables neighbours
+            var available = getAvailable(i,j);
+            
+            // while have available
+            while (available.length>0) {
+                // get a random neighbor
+                var neighbor = available[Math.floor(Math.random() * available.length)];
+
+                // removes the neighbor of the current element
+                tiles[i][j].neighbours.splice( tiles[i][j].neighbours.indexOf(neighbor), 1 );
+
+                // removes the current element of neighbor
+                neighbor.neighbours.splice( neighbor.neighbours.indexOf(tiles[i][j]), 1 );
+
+                // execute the process in the neighbor
+                maze(neighbor.col,neighbor.row);
+
+                // get availables neighbours
+                available = getAvailable(i,j);
+            }
+        }
+        
+        // maze generation
+        function generate() {
+            // create tiles
+            for (var i=0; i<COLS; i++) {
+                tiles[i] = [];
+                for (var j=0; j<ROWS; j++) {
+                    tiles[i][j] = {row:j,col:i,visited:false,neighbours:[]}
+                }
+            }
+
+            // define neighbours
+            for (var i=0; i<COLS; i++) {
+                for (var j=0; j<ROWS; j++) {
+                    if (i>0) tiles[i][j].neighbours.push(tiles[i-1][j]); // west
+                    if (j>0) tiles[i][j].neighbours.push(tiles[i][j-1]); // north
+                    if (i<COLS-1) tiles[i][j].neighbours.push(tiles[i+1][j]); // east
+                    if (j<ROWS-1) tiles[i][j].neighbours.push(tiles[i][j+1]); // south
+                }
+            }
+            
+            // start maze creation
+            maze(0,0);
+
+            // drawing
+            var canvas = document.getElementById("gameCanvas");
+            var ctx = canvas.getContext("2d");
+            ctx.clearRect(0,0,800,600);
+            
+            for (var i=0; i<COLS; i++) {
+                for (var j=0; j<ROWS; j++) {
+                    var px = i*SIZE+10;
+                    var py = j*SIZE+15;
+                    var tile = tiles[i][j];
+
+                    ctx.beginPath();
+                    ctx.moveTo(px,py);
+
+                    // north
+                    if (j>0 && tile.neighbours.indexOf(tiles[i][j-1])<0)
+                        ctx.moveTo(px+SIZE,py);
+                    else
+                        ctx.lineTo(px+SIZE,py);
+
+                    // east
+                    if (i<COLS-1 && tile.neighbours.indexOf(tiles[i+1][j])<0)
+                        ctx.moveTo(px+SIZE,py+SIZE);
+                    else
+                        ctx.lineTo(px+SIZE,py+SIZE);
+
+                    // south
+                    if (j<ROWS-1 && tile.neighbours.indexOf(tiles[i][j+1])<0)
+                        ctx.moveTo(px,py+SIZE);
+                    else
+                        ctx.lineTo(px,py+SIZE);
+
+                    // west
+                    if (i>0 && tile.neighbours.indexOf(tiles[i-1][j])<0)
+                        ctx.moveTo(px,py);
+                    else
+                        ctx.lineTo(px,py);
+
+                    ctx.stroke();
+                }
+            }
+        }
+        generate();
+        
+        function generateMaze() {
+            generate();
+        }  
+    </script>
+</body>
+</html>

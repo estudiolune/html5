@@ -2,7 +2,7 @@
 
 Maze create sample written using HTML5 and Javascript.
 
-*See more in http://labs.lunestudios.com/pb/a-logica-dos-labirintos
+*See more in http://labs.lunestudios.com/pb/a-logica-dos-labirintos*
 
 ## Usage
 

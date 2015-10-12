@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <style>
+            body{padding: 0; margin: 0;}
+        </style>
+    </head>
+    
+<body>
+    <canvas id="gameCanvas" width="800" height="600" style="border:1px solid #000000">
+        Your browser does not support the HTML5 canvas tag.
+    </canvas>
+
+    <script>
+        // class Layer
+        function Layer(filename, parallaxDepth) {
+            // get image 1
+            this.img1 = new Image();
+            this.img1.src = filename;
+            
+            // if depth is greater than zero
+            if (parallaxDepth > 0) {
+                this.img2 = new Image();
+                this.img2.src = filename;
+            }
+            
+            // define position and depth
+            this.x = 0;
+            this.y = 0;
+            this.parallaxDepth = parallaxDepth;
+        }
+ 
+        // update this layer
+        Layer.prototype.update = function(elapsed) {
+            this.x -= this.parallaxDepth * elapsed;
+            this.y = 600 - this.img1.height;
+            if (this.x < -this.img1.width)
+                this.x = 0;
+        }
+        
+        // render this layer
+        Layer.prototype.render = function() {
+            ctx.drawImage(this.img1, this.x, this.y);
+            if (this.img2)
+                ctx.drawImage(this.img2, this.x + this.img1.width, this.y);
+        }
+                
+        // create layers and set speed for each
+        var layers = [
+            new Layer('parallax-bg.png', 0),
+            new Layer('parallax-mountains-far.png', 1),
+            new Layer('parallax-mountains-foreground.png', 6),
+            new Layer('parallax-trees.png', 12),
+            new Layer('parallax-trees-foreground.png', 20)
+        ];
+
+        // get canvas and context
+        var canvas = document.getElementById("gameCanvas");
+        var ctx = canvas.getContext("2d");
+
+        // update
+        function update(elapsed) {
+            // update layers
+            for (var i=0; i<layers.length; i++)
+                layers[i].update(elapsed);
+        }
+        
+        // render
+        function render() {
+            // clear canvas
+            ctx.clearRect(0, 0, 800, 600);
+            // render layers
+            for (var i=0; i<layers.length; i++)
+                layers[i].render();
+        }
+
+        // game loop
+        var lastUpdate = window.Date.now();
+        function tick() {
+            // get current time
+            var now = window.Date.now();
+
+            // and calculates the elapsed time
+            var elapsed = (now - lastUpdate) / 1000;
+            lastUpdate = now;
+            
+            // update all game objects here
+            update(elapsed);
+            
+            // ... and render them somehow.
+            render();
+
+            // this makes the `tick` function run 60 frames per second (or slower, depends on monitor's refresh rate).
+            window.requestAnimationFrame(tick);
+        }
+        tick();
+    </script>
+</body>
+</html>

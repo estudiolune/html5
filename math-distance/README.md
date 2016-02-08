@@ -2,7 +2,7 @@
 
 Example of the use of the distance between two points.
 
-*See more in http://labs.lunestudios.com/?p=1159&preview=true*
+*See more in http://labs.lunestudios.com/matematica-distancia/*
 
 ## Usage
 

@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <style>
+            body{
+            padding: 0;
+                margin: 0;
+            }
+        </style>
+    </head>
+    
+<body>
+    <canvas id="gameCanvas" width="800" height="600">
+        Your browser does not support the HTML5 canvas tag.
+    </canvas>
+
+    <script>
+        // get canvas and context
+        var canvas = document.getElementById("gameCanvas");
+        var ctx = canvas.getContext("2d");
+        
+        // class Vector2
+        function Vector2(x, y) {
+            this.x = x;
+            this.y = y;
+        }
+
+        Vector2.prototype.sqrtMagnitude = function (vector) {
+            var dx = vector.x - this.x;
+            var dy = vector.y - this.y;
+            return (dx * dx) + (dy * dy);
+        }
+
+        Vector2.prototype.distance = function(vector) {
+            var dx = vector.x - this.x;
+            var dy = vector.y - this.y;
+            return Math.sqrt(this.sqrtMagnitude(vector));
+        }
+
+        // class Element
+        function Element(x, y) {
+            this.position = new Vector2(x, y);
+            this.radius = 40;
+            this.color1 = "#B66E6F";
+            this.color2 = "#ABCDEF";
+            this.collision = false;
+            this.img = new Image();
+            this.img.src = "spaceship.png";
+        }
+        
+        Element.prototype.hitTest = function(vector) {
+            return this.position.sqrtMagnitude(vector) < (this.radius * this.radius);
+        }
+        
+        Element.prototype.draw = function () {
+            // draw collision radius
+            ctx.beginPath();
+            ctx.arc(this.position.x, this.position.y, this.radius, 0, 2*Math.PI, false);
+            ctx.closePath();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = this.collision ? this.color2 : this.color1;
+            ctx.stroke();
+            // draw image
+            ctx.drawImage(this.img, this.position.x-this.img.width/2, this.position.y-this.img.height/2);
+        }
+        
+        // variables
+        var shapes = [];
+        var dragIndex;
+        var dragging;
+        var mousePosition = new Vector2(0, 0);
+        var dragHold = new Vector2(0, 0);
+
+        init();
+        
+        // init
+        function init() {
+            // add elements
+            shapes.push(new Element(100, 500));
+            shapes.push(new Element(700, 100));
+            // render
+            setTimeout(render, 500);
+            // add mouse down listener
+            canvas.addEventListener("mousedown", mouseDownListener, false);
+        }
+        
+        // check collision
+        function checkCollision() {
+            if (shapes[0].position.distance(shapes[1].position) < (shapes[0].radius + shapes[1].radius)) {
+                shapes[0].collision = true;
+                shapes[1].collision = true;
+            } else {
+                shapes[0].collision = false;
+                shapes[1].collision = false;
+            }
+        }
+        
+        // render
+        function render() {
+            drawBackground();
+            drawElements();
+            drawLine();
+            drawText();
+        }
+        
+        // fill canvas
+        function drawBackground() {
+            ctx.fillStyle = "#4D4250";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        
+        // draw elements
+        function drawElements() {
+            for (var i=0; i < shapes.length; i++) {
+                shapes[i].draw();
+            }
+        }
+        
+        // draw a line between two elements
+        function drawLine() {
+            ctx.beginPath();
+            ctx.setLineDash([5]);
+            ctx.lineWidth = 3;
+            ctx.moveTo(shapes[0].position.x, shapes[0].position.y);
+            ctx.lineTo(shapes[1].position.x, shapes[1].position.y);
+            ctx.strokeStyle = "#F6D169";
+            ctx.stroke();
+            ctx.setLineDash([0]);
+        }
+        
+        // draw text with de distance value
+        function drawText() {
+            ctx.font = "16pt Arial";
+            ctx.fillStyle = "#FFFFFF";
+            var dist = shapes[0].position.distance(shapes[1].position);
+            ctx.fillText("Distance: " + dist.toFixed(2), 10, 26);
+        }
+        
+        // on mouse down
+        function mouseDownListener(evt) {
+            // only the topmost one will be dragged
+            var highestIndex = -1;
+
+            // getting mouse position correctly, being mindful of resizing that may have occured in the browser:
+            var bRect = canvas.getBoundingClientRect();
+            mousePosition.x = (evt.clientX - bRect.left) * (canvas.width / bRect.width);
+            mousePosition.y = (evt.clientY - bRect.top) * (canvas.height / bRect.height);
+
+            // find which shape was clicked
+            for (var i=0; i < shapes.length; i++) {
+                if (shapes[i].hitTest(mousePosition)) {
+                    dragging = true;
+                    if (i > highestIndex) {
+                        // mouse is "holding" the object
+                        dragHold.x = mousePosition.x - shapes[i].position.x;
+                        dragHold.y = mousePosition.y - shapes[i].position.y;
+                        highestIndex = i;
+                        dragIndex = i;
+                    }
+                }
+            }
+
+            // listeners
+            if (dragging)
+                window.addEventListener("mousemove", mouseMoveListener, false);
+            canvas.removeEventListener("mousedown", mouseDownListener, false);
+            window.addEventListener("mouseup", mouseUpListener, false);
+
+            // code below prevents the mouse down from having an effect on the main browser window
+            if (evt.preventDefault)
+                evt.preventDefault(); // standard
+            else if (evt.returnValue)
+                evt.returnValue = false; // older IE
+            return false;
+        }
+
+        // on mouse up
+        function mouseUpListener(evt) {
+            canvas.addEventListener("mousedown", mouseDownListener, false);
+            window.removeEventListener("mouseup", mouseUpListener, false);
+            if (dragging) {
+                dragging = false;
+                window.removeEventListener("mousemove", mouseMoveListener, false);
+            }
+        }
+
+        // on mouse move
+        function mouseMoveListener(evt) {
+            var shapeRad = shapes[dragIndex].radius;
+            var minX = shapeRad;
+            var maxX = canvas.width - shapeRad;
+            var minY = shapeRad;
+            var maxY = canvas.height - shapeRad;
+            
+            // getting mouse position correctly 
+            var bRect = canvas.getBoundingClientRect();
+            mousePosition.x = (evt.clientX - bRect.left) * (canvas.width / bRect.width);
+            mousePosition.y = (evt.clientY - bRect.top) * (canvas.height / bRect.height);
+
+            // clamp x and y positions to prevent object from dragging outside of canvas
+            var posX = mousePosition.x - dragHold.x;
+            posX = (posX < minX) ? minX : ((posX > maxX) ? maxX : posX);
+            var posY = mousePosition.y - dragHold.y;
+            posY = (posY < minY) ? minY : ((posY > maxY) ? maxY : posY);
+
+            // set the new position
+            shapes[dragIndex].position.x = posX;
+            shapes[dragIndex].position.y = posY;
+
+            // update
+            checkCollision();
+            render();
+        }
+    </script>
+</body>
+</html>

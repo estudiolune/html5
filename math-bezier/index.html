@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <style>
+            body{
+                padding: 0;
+                margin: 0;
+            }
+        </style>
+    </head>
+    
+<body onload="init()">
+    <canvas id="mainCanvas" width="800" height="600">
+        Your browser does not support the HTML5 canvas tag.
+    </canvas>
+
+    <script src="https://rawgit.com/feldhaus/jsanvas/master/jsanvas.js"></script>
+    <script>
+        // get canvas and context
+        var canvas = document.getElementById("mainCanvas");
+        var ctx = canvas.getContext("2d");
+        
+        // variables
+        var controlPoints = [];
+        var pathPoints = [];
+        var smoothness = 1;
+        var showPoints = true;
+        var mutableControlPoints = true;
+        
+        // init
+        function init() {
+            // render
+            render();
+            
+            // add listeners
+            canvas.addEventListener("mousedown", mouseDownListener, false);
+        }
+        
+        // render
+        function render() {
+            drawBackground();
+            if (showPoints) drawPoints();
+            drawPath();
+            drawText();
+        }
+        
+        // fill canvas (background)
+        function drawBackground() {
+            ctx.fillStyle = "#4D4250";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        
+        // draw points
+        function drawPoints() {
+            // path points
+            for (var i=0; i < pathPoints.length; i++) {
+                ctx.beginPath();
+                ctx.arc(pathPoints[i].x, pathPoints[i].y, 3, 0, 2*Math.PI, false);
+                ctx.closePath();
+                ctx.strokeStyle = "#B66E6F";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+            
+            // control points
+            for (var i=0; i < controlPoints.length; i++) {
+                ctx.beginPath();
+                ctx.arc(controlPoints[i].x, controlPoints[i].y, 5, 0, 2*Math.PI, false);
+                ctx.closePath();
+                ctx.strokeStyle = "#ABCDEF";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+        }
+        
+        // draw a line between the points (pathPoints)
+        function drawPath() {
+            if (pathPoints.length > 1) {
+                ctx.beginPath();
+                ctx.moveTo(pathPoints[0].x, pathPoints[0].y);
+                for (var i = 1; i < pathPoints.length; i++) {
+                    ctx.lineTo(pathPoints[i].x, pathPoints[i].y);
+                }
+                ctx.lineWidth = 1;
+                ctx.strokeStyle = "#F6D169";
+                ctx.stroke();
+            }
+        }
+        
+        // draw text with de distance value
+        function drawText() {
+            ctx.font = "10pt Arial";
+            ctx.fillStyle = "#FFFFFF";
+            ctx.fillText("Smoothness: " + smoothness, 10, 26);
+            ctx.fillText("Show Points: " + showPoints, 10, 46);
+            ctx.fillText("Mutable Control Points: " + mutableControlPoints, 10, 66);
+        }
+        
+        // on key down
+        function keydownListener(event) {
+            console.log(event.keyCode);
+            
+            var keyPressed = String.fromCharCode(event.keyCode);
+            
+            switch (keyPressed) {
+                case 'W':
+                    smoothness++; smoothPath(); render(); break;
+                case 'S':
+                    if (smoothness > 0) smoothness--; smoothPath(); render(); break;
+                case 'D':
+                    showPoints = !showPoints; render(); break;
+                case 'A':
+                    mutableControlPoints = !mutableControlPoints; smoothPath(); render(); break;
+            }
+        }
+        
+        // on mouse down
+        function mouseDownListener(event) {
+            // listeners
+            window.addEventListener("mouseup", mouseUpListener, false);
+            window.addEventListener("mousemove", mouseMoveListener, false);
+            canvas.removeEventListener("mousedown", mouseDownListener, false);
+            
+            // getting mouse position correctly, being mindful of resizing that may have occured in the browser:
+            var bounds = canvas.getBoundingClientRect();
+            var mousePosition = new Vector2(0, 0);
+            mousePosition.x = (event.clientX - bounds.left) * (canvas.width / bounds.width);
+            mousePosition.y = (event.clientY - bounds.top) * (canvas.height / bounds.height);
+            
+            // clear control points and add the first point
+            controlPoints = [];
+            controlPoints.push(mousePosition);
+
+            // code below prevents the mouse down from having an effect on the main browser window
+            if (event.preventDefault)
+                event.preventDefault(); // standard
+            else if (event.returnValue)
+                event.returnValue = false; // older IE
+            
+            return false;
+        }
+        
+        // on mouse move
+        function mouseMoveListener(event) {
+            // getting mouse position correctly, being mindful of resizing that may have occured in the browser:
+            var bounds = canvas.getBoundingClientRect();
+            var mousePosition = new Vector2();
+            mousePosition.x = (event.clientX - bounds.left) * (canvas.width / bounds.width);
+            mousePosition.y = (event.clientY - bounds.top) * (canvas.height / bounds.height);
+            
+            // if distance is greater, add a new waypoint
+            if (controlPoints[controlPoints.length-1].sqrDistance(mousePosition) > 1600) {
+                controlPoints.push(mousePosition);
+                smoothPath();
+            }
+            
+            // update
+            render();
+            
+            return false;
+        }
+
+        // on mouse up
+        function mouseUpListener(evt) {
+            // listeners
+            canvas.addEventListener("mousedown", mouseDownListener, false);
+            window.removeEventListener("mouseup", mouseUpListener, false);
+            window.removeEventListener("mousemove", mouseMoveListener, false);
+            
+            // update
+            render();
+            
+            return false;
+        }
+        
+        // define the points to get a curved path
+        function smoothPath() {
+            var count = controlPoints.length;
+            
+            // just one point or no smoothness
+            if (count == 1 || smoothness == 0) {
+                pathPoints = controlPoints;        
+            }
+            // just two points or no mutable control points
+            else if (count == 2 || !mutableControlPoints) {
+                pathPoints = makeSmoothCurve(controlPoints, smoothness);
+            }
+            // three or more points with mutable control points
+            else
+            {
+                // define auxiliares
+                var aux1 = smoothness + 1;
+                var aux2 = aux1 * 2;
+                var auxCP = controlPoints.concat(); // copy
+                
+                for (var i = 0; i < count-2; i++) {
+                    var temp = auxCP.slice(i, i+3);
+                    var last = makeSmoothCurve(temp, smoothness);
+                    if (i == 0) { // first
+                        pathPoints = last.concat();
+                    } else {
+                        pathPoints = pathPoints.slice(0, pathPoints.length - aux1); // remove the last
+                        pathPoints = pathPoints.concat(last.slice(last.length - aux2, last.length)); // add
+                    }
+                    auxCP[i + 1] = last[last.length - (aux1 + 1)];
+                }
+            }
+        }
+        
+        // make a smooth path between the points, using the deCasteljau's algorithm
+        function makeSmoothCurve(arrayToCurve, smooth) {
+            // smoothness must be at least one
+            if (smooth < 1) smooth = 1;
+            
+            var t = 0;
+            var points = [];
+            var curvedPoints = [];
+            var pointsLength = arrayToCurve.length;
+            var curvedLength = pointsLength + ((pointsLength - 1) * smooth) - 1;
+
+            for (var pointInTimeOnCurve = 0; pointInTimeOnCurve < curvedLength + 1; pointInTimeOnCurve++) {
+
+                // value between 0 and 1
+                t = pointInTimeOnCurve / curvedLength;
+
+                // copy
+                for (var a = 0; a < pointsLength; a++)
+                    points[a] = arrayToCurve[a].clone();
+                
+                // deCasteljau's algorithm is a linear interpolation between control points
+                for (var j = pointsLength-1; j > 0; j--) {
+                    for (var i = 0; i < j; i++) {
+                        points[i].x = (1-t) * points[i].x + t * points[i+1].x;
+                        points[i].y = (1-t) * points[i].y + t * points[i+1].y;
+                    }
+                }
+                curvedPoints.push(points[0]);
+            }
+            return curvedPoints;
+        }
+
+        window.addEventListener("keydown", keydownListener, true);
+    </script>
+</body>
+</html>

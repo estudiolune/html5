@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <style>
+            body{
+                padding: 0;
+                margin: 0;
+            }
+        </style>
+    </head>
+
+<body>
+    <canvas id="myCanvas" width="800" height="600">
+        Your browser does not support the HTML5 canvas tag.
+    </canvas>
+    
+    <script src="https://rawgit.com/feldhaus/jsanvas/master/jsanvas.min.js"></script>
+    <script>
+        jsanvas.canvasID = "myCanvas"
+        
+        var type = 1;
+        var walls = [];
+        var raycasts = [];
+        var inputManager = new InputManager(jsanvas.canvas);
+        
+        var color1 = '#413634'; // background
+        var color2 = '#A88D58'; // walls
+        var color3 = '#FF2F23'; // raycasts
+        
+        window.onload = function() {
+            var w = jsanvas.width;
+            var h = jsanvas.height;
+            var center = jsanvas.center;
+            
+            // background
+            var bg = jsanvas.newRect(center.x, center.y, w, h);
+            bg.fillStyle = color1;
+            bg.lineWidth = 0;
+            
+            // border
+            walls.push(jsanvas.newLine(0,0, w,0));
+            walls.push(jsanvas.newLine(w,0, w,h));
+            walls.push(jsanvas.newLine(w,h, 0,h));
+            walls.push(jsanvas.newLine(0,h, 0,0));
+            
+            // polygon #1
+            walls.push(jsanvas.newLine(300,100, 100,300));
+            walls.push(jsanvas.newLine(100,300, 300,300));
+            walls.push(jsanvas.newLine(300,300, 300,100));
+           
+            // polygon #2
+            walls.push(jsanvas.newLine(500,100, 700,140));
+            walls.push(jsanvas.newLine(700,140, 700,200));
+            walls.push(jsanvas.newLine(700,200, 600,200));
+            walls.push(jsanvas.newLine(600,200, 500,100));
+            
+            // polygon #3
+            walls.push(jsanvas.newLine(600,400, 550,550));
+            walls.push(jsanvas.newLine(550,550, 700,550));
+            walls.push(jsanvas.newLine(700,550, 600,400));
+            
+            // polygon #4
+            walls.push(jsanvas.newLine(400,400, 370,500));
+            walls.push(jsanvas.newLine(370,500, 300,550));
+            walls.push(jsanvas.newLine(300,550, 200,500));
+            
+            // set walls line color
+            walls.forEach(function(line){ line.strokeStyle = color2; });
+            
+            // mouse events
+            inputManager.init();
+            
+            // loop
+            tick();
+        }
+        
+        // game loop
+        var lastUpdate = window.Date.now();
+        function tick() {
+            // get current time
+            var now = window.Date.now();
+            
+            // and calculates the elapsed time
+            var elapsed = (now - lastUpdate) / 1000;
+            lastUpdate = now;
+            
+            // update all game objects here
+            update(elapsed);
+            
+            // and render them somehow
+            render();
+            
+            // this makes the 'tick' function run 60 frames per second (or slower, depends on monitor's refresh rate)
+            window.requestAnimationFrame(tick);
+        }
+        
+        // update
+        function update(elapsed) {
+            
+            // remove last raycasts
+            while (raycasts.length > 0)
+                jsanvas.remove(raycasts.pop());
+            
+            // calculate linear raycast
+            raycastUniquePoint();
+        }
+        
+        // render
+        function render() {
+            
+            // define raycast color and line width
+            for (var i = 0; i < raycasts.length; i++) {
+                raycasts[i].strokeStyle = color3;
+                raycasts[i].lineWidth = 0.5;
+            }
+            
+            // call jsanvas render
+            jsanvas.render();
+        }
+        
+        // returns an intersect between raycast and a segment
+        function getIntersection(ray, seg) {
+            
+            // ray in parametric: point + direction * t1
+            var r_p = ray.p1;
+            var r_d = Vector2.sub(ray.p2, ray.p1);
+
+            // segment in parametric: point + direction * t2
+            var s_p = seg.p1;
+            var s_d = Vector2.sub(seg.p2, seg.p1);
+
+            // are parallel, so no intersect
+            var r_mag = r_d.magnitude;
+            var s_mag = s_d.magnitude;
+            if (r_d.x / r_mag == s_d.x / s_mag && r_d.y / r_mag == s_d.y / s_mag)
+                return null;
+
+            // solve for T1 and T2
+            var t2 = (r_d.x * (s_p.y - r_p.y) + r_d.y * (r_p.x - s_p.x)) / (s_d.x * r_d.y - s_d.y * r_d.x);
+            var t1 = (s_p.x + s_d.x * t2 - r_p.x) / r_d.x;
+
+            // must be within parametic whatevers for RAY/SEGMENT
+            if (t1 < 0) return null;
+            if (t2 < 0 || t2 > 1) return null;
+
+            // return the point of intersection
+            return {
+                x: r_p.x + r_d.x * t1,
+                y: r_p.y + r_d.y * t1,
+                distance: t1
+            };
+        }
+        
+        // returns a closest intersection 
+        function findClosestIntersection(ray) {
+            
+            var closestIntersect = null;
+            
+            // all the 'walls'
+            for (var i = 0; i < walls.length; i++) {
+                
+                // get a segment
+                var line = walls[i];
+                seg = {p1:line.points[0], p2:line.points[1]};
+                
+                // get intersection
+                var intersect = getIntersection(ray, seg);
+                
+                // not found, continue
+                if (!intersect) continue;
+                
+                // it's nearest, save
+                if (!closestIntersect || intersect.distance < closestIntersect.distance)
+                    closestIntersect = intersect;
+            }
+            
+            return closestIntersect;
+        }
+
+        // insert raycasts to unique point
+        function raycastUniquePoint() {
+            
+            var mouse = inputManager.mousePosition;
+            
+            // get all unique points
+            var points = [];
+            walls.forEach(function(line) {
+                points.push(line.points[0], line.points[1]);
+            });
+            
+            var uniquePoints = (function(points) {
+                var set = {};
+                return points.filter(function(p) {
+                    var key = p.x + "," + p.y;
+                    if (key in set) {
+                        return false;
+                    } else {
+                        set[key] = true;
+                        return true;
+                    }
+                });
+            })(points);
+            
+            // get all angles
+            var uniqueAngles = [];
+            for (var j = 0; j < uniquePoints.length; j++) {
+                var uniquePoint = uniquePoints[j];
+                var angle = Math.atan2(uniquePoint.y - mouse.y, uniquePoint.x - mouse.x);
+                uniquePoint.angle = angle;
+                uniqueAngles.push(angle-0.00001, angle+0.00001);
+            }
+            
+            var intersects = [];
+            
+            // raycast in all directions
+            for (var j = 0; j < uniqueAngles.length; j++) {
+                var angle = uniqueAngles[j];
+
+                // ray from mouse position to direction
+                var ray = {p1:mouse};
+                
+                // calculate dx and dy from angle
+                var dx = Math.cos(angle);
+                var dy = Math.sin(angle);
+                ray.p2 = new Vector2(mouse.x + dx, mouse.y + dy);
+
+                // find closest intersection
+                var closestIntersect = findClosestIntersection(ray);
+                closestIntersect.angle = angle;
+
+                // there is an intersect
+                if (closestIntersect != null) {
+                    raycasts.push(jsanvas.newCircle(closestIntersect.x, closestIntersect.y, 3));
+                    intersects.push(closestIntersect);
+                }
+            }
+            
+            // sorting angles
+            intersects.sort(function(a,b){ return a.angle-b.angle; });
+            
+            for (var i = 1; i < intersects.length; i++) {
+                if (i == intersects.length - 1)
+                    raycasts.push(jsanvas.newLine(mouse.x, mouse.y, intersects[i].x, intersects[i].y, intersects[0].x, intersects[0].y));
+                else
+                    raycasts.push(jsanvas.newLine(mouse.x, mouse.y, intersects[i].x, intersects[i].y, intersects[i+1].x, intersects[i+1].y));
+                
+                raycasts[raycasts.length-1].fillStyle = 'rgba(255,255,0,0.1)';
+            }
+        }
+        
+        // input management
+        function InputManager(canvas) {
+            this.canvas = canvas;
+            this.hoverOver = false;
+            this.mousePosition = jsanvas.center;
+            this.keyPressed = null;
+        }
+
+        InputManager.prototype.init = function() {
+            this.canvas.addEventListener("mousemove", this.onMouseMove.bind(this), false);
+            this.canvas.addEventListener("mouseover", this.onMouseOver.bind(this), false);
+            this.canvas.addEventListener("mouseout", this.onMouseOut.bind(this), false);
+            window.addEventListener("keydown", this.onKeyDown.bind(this), true);
+        }
+
+        InputManager.prototype.onMouseMove = function(e) {
+            var rect = this.canvas.getBoundingClientRect();
+            this.mousePosition.x = e.clientX - rect.left;
+            this.mousePosition.y = e.clientY - rect.top;
+        }
+
+        InputManager.prototype.onMouseOver = function(e) {
+            this.hoverOver = true;
+        }
+
+        InputManager.prototype.onMouseOut = function(e) {
+            this.hoverOver = false;
+        }
+        
+        InputManager.prototype.onKeyDown = function(e) {
+            this.keyPressed = String.fromCharCode(e.keyCode);
+        }
+    </script>
+</html>

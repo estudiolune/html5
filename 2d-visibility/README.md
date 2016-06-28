@@ -1,12 +1,12 @@
-# Math-Bezier
+# 2D-Visibility
 
-Example of the use of the bezier curves and splines.
+Examples of the use of the 2d-visibility.
 
-*See more in http://labs.lunestudios.com/matematica-bezier/*
+*See more in http://labs.lunestudios.com/visibilidade-2d/*
 
 ## Usage
 
-Download or clone the project and open the index.html in your browser.
+Download or clone the project and open the .html files in your browser.
 
 ## License
 

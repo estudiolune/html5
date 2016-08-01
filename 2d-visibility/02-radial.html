@@ -33,36 +33,36 @@
             var center = jsanvas.center;
             
             // background
-            var bg = jsanvas.newRect(center.x, center.y, w, h);
+            var bg = new Rect(center.x, center.y, w, h);
             bg.fillStyle = color1;
             bg.lineWidth = 0;
             
             // border
-            walls.push(jsanvas.newLine(0,0, w,0));
-            walls.push(jsanvas.newLine(w,0, w,h));
-            walls.push(jsanvas.newLine(w,h, 0,h));
-            walls.push(jsanvas.newLine(0,h, 0,0));
+            walls.push(new Line(0,0, w,0));
+            walls.push(new Line(w,0, w,h));
+            walls.push(new Line(w,h, 0,h));
+            walls.push(new Line(0,h, 0,0));
             
             // polygon #1
-            walls.push(jsanvas.newLine(300,100, 100,300));
-            walls.push(jsanvas.newLine(100,300, 300,300));
-            walls.push(jsanvas.newLine(300,300, 300,100));
+            walls.push(new Line(300,100, 100,300));
+            walls.push(new Line(100,300, 300,300));
+            walls.push(new Line(300,300, 300,100));
            
             // polygon #2
-            walls.push(jsanvas.newLine(500,100, 700,140));
-            walls.push(jsanvas.newLine(700,140, 700,200));
-            walls.push(jsanvas.newLine(700,200, 600,200));
-            walls.push(jsanvas.newLine(600,200, 500,100));
+            walls.push(new Line(500,100, 700,140));
+            walls.push(new Line(700,140, 700,200));
+            walls.push(new Line(700,200, 600,200));
+            walls.push(new Line(600,200, 500,100));
             
             // polygon #3
-            walls.push(jsanvas.newLine(600,400, 550,550));
-            walls.push(jsanvas.newLine(550,550, 700,550));
-            walls.push(jsanvas.newLine(700,550, 600,400));
+            walls.push(new Line(600,400, 550,550));
+            walls.push(new Line(550,550, 700,550));
+            walls.push(new Line(700,550, 600,400));
             
             // polygon #4
-            walls.push(jsanvas.newLine(400,400, 370,500));
-            walls.push(jsanvas.newLine(370,500, 300,550));
-            walls.push(jsanvas.newLine(300,550, 200,500));
+            walls.push(new Line(400,400, 370,500));
+            walls.push(new Line(370,500, 300,550));
+            walls.push(new Line(300,550, 200,500));
             
             // set walls line color
             walls.forEach(function(line){ line.strokeStyle = color2; });
@@ -197,8 +197,8 @@
 
                 // there is an intersect
                 if (closestIntersect != null) {
-                    raycasts.push(jsanvas.newCircle(closestIntersect.x, closestIntersect.y, 3));
-                    raycasts.push(jsanvas.newLine(mouse.x, mouse.y, closestIntersect.x, closestIntersect.y));
+                    raycasts.push(new Circle(closestIntersect.x, closestIntersect.y, 3));
+                    raycasts.push(new Line(mouse.x, mouse.y, closestIntersect.x, closestIntersect.y));
                 }
             }
         }

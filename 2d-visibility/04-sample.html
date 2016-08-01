@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <style>
+            body{
+            padding: 0;
+                margin: 0;
+            }
+        </style>
+    </head>
+    
+<body>
+    <canvas id="myCanvas" width="800" height="600">
+        Your browser does not support the HTML5 canvas tag.
+    </canvas>
+
+    <script src="https://rawgit.com/feldhaus/jsanvas/master/jsanvas.min.js"></script>
+    <script>
+        jsanvas.canvasID = "myCanvas"
+        var w = jsanvas.width;
+        var h = jsanvas.height;
+        
+        var raycasts = [];
+        var walls = [];
+        
+        var player;
+        var bullets;
+        
+        window.onload = function() {
+            // background
+            var bg = new Rect(jsanvas.center.x, jsanvas.center.y, w, h);
+            bg.fillStyle = '#405043';
+            bg.lineWidth = 0;
+
+            // border
+            walls.push(new Line(0,0, w,0));
+            walls.push(new Line(w,0, w,h));
+            walls.push(new Line(w,h, 0,h));
+            walls.push(new Line(0,h, 0,0));
+            
+            // polygon #1
+            walls.push(new Line(100,100, 120,100));
+            walls.push(new Line(120,100, 120,450));
+            walls.push(new Line(120,450, 100,450));
+            walls.push(new Line(100,450, 100,100));
+            
+            // polygon #2
+            walls.push(new Line(300,100, 500,100));
+            walls.push(new Line(500,100, 500,400));
+            walls.push(new Line(500,400, 480,400));
+            walls.push(new Line(480,400, 480,120));
+            walls.push(new Line(480,120, 300,120));
+            walls.push(new Line(300,120, 300,100));
+            
+            // polygon #3
+            walls.push(new Line(320,400, 340,400));
+            walls.push(new Line(340,400, 340,500));
+            walls.push(new Line(340,500, 600,500));
+            walls.push(new Line(600,500, 600,520));
+            walls.push(new Line(600,520, 320,520));
+            walls.push(new Line(320,520, 320,400));
+            
+            // polygon #4
+            walls.push(new Line(620,300, 640,300));
+            walls.push(new Line(640,300, 640,320));
+            walls.push(new Line(640,320, 620,320));
+            walls.push(new Line(620,320, 620,300));
+            
+            // polygon #5
+            walls.push(new Line(620,200, 640,200));
+            walls.push(new Line(640,200, 640,220));
+            walls.push(new Line(640,220, 620,220));
+            walls.push(new Line(620,220, 620,200));
+            
+            // player
+            player = new Player(400, 300);
+        
+            // pool bullets
+            bullets = new Array();
+            for (var i = 0; i < 100; i++)
+                bullets[i] = new Bullet();
+            
+            // listener keyboard and mouse
+            window.addEventListener('keydown', keydownListener, true);
+            window.addEventListener('keyup', keyupListener, true);
+            window.addEventListener("mousedown", mouseDownListener, false);
+            window.addEventListener("mousemove", mouseMoveListener, false);
+            
+            // loop
+            tick();
+        }
+        
+        // game loop
+        var lastUpdate = window.Date.now();
+        function tick() {
+            // get current time
+            var now = window.Date.now();
+            
+            // and calculates the elapsed time
+            var elapsed = (now - lastUpdate) / 1000;
+            lastUpdate = now;
+            
+            // update all game objects here
+            update(elapsed);
+            
+            // and render them somehow
+            render();
+            
+            // this makes the 'tick' function run 60 frames per second (or slower, depends on monitor's refresh rate)
+            window.requestAnimationFrame(tick);
+        }
+        
+        // update
+        function update() {
+            
+            // remove last raycasts
+            while (raycasts.length > 0)
+                raycasts.pop().removeSelf();
+            raycastUniquePoint(player.lookAt);
+            
+            // update player
+            player.update();
+            player.toFront();
+            
+            // update bullets
+            for (var i=bullets.length-1; i>=0; i--) {
+                if (bullets[i].life > 0)
+                    bullets[i].update();
+            }
+        }
+        
+        // render
+        function render() {
+            // define raycast color and line width
+            for (var i = 0; i < raycasts.length; i++) {
+                raycasts[i].strokeStyle = 'red';
+                raycasts[i].lineWidth = 0;
+                raycasts[i].fillStyle = 'rgba(255,255,0,0.1)';
+            }
+            
+            // call jsanvas render
+            jsanvas.render();
+        }
+        
+        // returns an intersect between raycast and a segment
+        function getIntersection(ray, seg) {
+            
+            // ray in parametric: point + direction * t1
+            var r_p = ray.p1;
+            var r_d = Vector2.sub(ray.p2, ray.p1);
+
+            // segment in parametric: point + direction * t2
+            var s_p = seg.p1;
+            var s_d = Vector2.sub(seg.p2, seg.p1);
+
+            // are parallel, so no intersect
+            var r_mag = r_d.magnitude;
+            var s_mag = s_d.magnitude;
+            if (r_d.x / r_mag == s_d.x / s_mag && r_d.y / r_mag == s_d.y / s_mag)
+                return null;
+
+            // solve for T1 and T2
+            var t2 = (r_d.x * (s_p.y - r_p.y) + r_d.y * (r_p.x - s_p.x)) / (s_d.x * r_d.y - s_d.y * r_d.x);
+            var t1 = (s_p.x + s_d.x * t2 - r_p.x) / r_d.x;
+
+            // must be within parametic whatevers for RAY/SEGMENT
+            if (t1 < 0) return null;
+            if (t2 < 0 || t2 > 1) return null;
+
+            // return the point of intersection
+            return {
+                x: r_p.x + r_d.x * t1,
+                y: r_p.y + r_d.y * t1,
+                distance: t1
+            };
+        }
+        
+        // returns a closest intersection 
+        function findClosestIntersection(ray) {
+            
+            var closestIntersect = null;
+            
+            // all the 'walls'
+            for (var i = 0; i < walls.length; i++) {
+                
+                // get a segment
+                var line = walls[i];
+                seg = {p1:line.points[0], p2:line.points[1]};
+                
+                // get intersection
+                var intersect = getIntersection(ray, seg);
+                
+                // not found, continue
+                if (!intersect) continue;
+                
+                // it's nearest, save
+                if (!closestIntersect || intersect.distance < closestIntersect.distance)
+                    closestIntersect = intersect;
+            }
+            
+            return closestIntersect;
+        }
+        
+        // ----------------------------------------------------------------
+        // class Player
+        function Player(x, y) {
+            Img.call(this, "player.png", x, y);
+            this.gunRange = new Vector2(-25, 25);
+            this.speed = 3;
+            this.toUp = false;
+            this.toDown = false;
+            this.toLeft = false;
+            this.toRight = false;
+            this.lookAt = new Vector2(0, 0);
+            
+            // convert gun range to radians
+            this.gunRange.x *= DEG2RAD;
+            this.gunRange.y *= DEG2RAD;
+        }
+        
+        Player.prototype = Object.create(Img.prototype);
+        
+        Player.prototype.update = function () {
+            if (this.toUp && this.y - this.speed > 0)
+                this.y -= this.speed;
+            if (this.toDown && this.y + this.speed < h)
+                this.y += this.speed;
+            if (this.toLeft && this.x - this.speed > 0)
+                this.x -= this.speed;
+            if (this.toRight && this.y - this.speed < w)
+                this.x += this.speed;
+            
+            this.angle = this.angleTo(this.lookAt);
+            this.rotation = this.angle * RAD2DEG;
+        }
+        
+        // ----------------------------------------------------------------
+        // class Bullet
+        function Bullet() {
+            Circle.call(this, 0, 0, 5);
+            this.visible = false;
+            this.fillStyle = '#F6D169';
+            this.speed = 1;
+            this.life = 0;
+            this.direction = new Vector2(0, 0);
+        }
+        
+        Bullet.prototype = new Circle();
+        
+        Bullet.prototype.awaken = function (position, direction) {
+            this.life = 60 + Math.random() * 40;
+            this.speed = 6 + Math.random();
+            this.position = position;
+            this.direction = direction;
+            this.x = position.x;
+            this.y = position.y;
+            this.visible = true;
+        }
+        
+        Bullet.prototype.update = function () {
+            this.x += this.direction.x * this.speed;
+            this.y += this.direction.y * this.speed;
+            this.life--;
+            if (this.life < 1)
+                this.visible = false;
+        }
+        
+        // ----------------------------------------------------------------
+        
+        // on key down
+        function keydownListener(event) {
+            var keyPressed = String.fromCharCode(event.keyCode);
+            
+            if (keyPressed == "W")
+                player.toUp = true;
+            else if (keyPressed == "D")
+                player.toRight = true;
+            else if (keyPressed == "S")
+                player.toDown = true;
+            else if (keyPressed == "A")
+                player.toLeft = true;
+        }
+        
+        // on key up
+        function keyupListener(event) {
+            var keyReleased = String.fromCharCode(event.keyCode);
+            
+            if (keyReleased == "W")	
+                player.toUp = false;
+            else if (keyReleased == "D")
+                player.toRight = false;
+            else if (keyReleased == "S")
+                player.toDown = false;
+            else if (keyReleased == "A")
+                player.toLeft = false;
+        }
+        
+        // on mouse down
+        function mouseDownListener(event) {
+            var aux = 0;
+            
+            for (var i=0; i<12; i++) {
+                // get a random angle in a range to spawn a bullet
+                var angle = (player.gunRange.x + (player.gunRange.y - player.gunRange.x) * Math.random());
+
+                // now get how far from the gun the projectile should spawn
+                var distance = 25 + 55 * Math.random();
+
+                // join angle and distance to create an offset from the gun
+                var temp = angle + player.angle;
+                var direction = new Vector2(Math.cos(temp), Math.sin(temp));
+                var offset = new Vector2(direction.x * distance, direction.y * distance);
+                var position = new Vector2(player.x + offset.x, player.y + offset.y);
+                
+                // awaken an available bullet
+                for (var j=aux; j<bullets.length; j++) {
+                    if (bullets[j].life < 1) {
+                        bullets[j].awaken(position, direction);
+                        aux = j;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // on mouse move
+        function mouseMoveListener(event) {
+            // getting mouse position correctly
+            var boundingRect = jsanvas.canvas.getBoundingClientRect();
+            var mousePosition = new Vector2(0, 0);
+            mousePosition.x = (event.clientX - boundingRect.left) * (jsanvas.width / boundingRect.width);
+            mousePosition.y = (event.clientY - boundingRect.top) * (jsanvas.height / boundingRect.height);
+            
+            // look at to mouse position
+            player.lookAt = mousePosition;
+        }
+        
+        function raycastUniquePoint(mouse) {
+            
+            // get all unique points
+            var points = (function(walls) {
+                var a = [];
+                walls.forEach(function(line) {
+                    a.push(line.points[0],line.points[1]);
+                });
+                return a;
+            })(walls);
+            
+            var uniquePoints = (function(points) {
+                var set = {};
+                return points.filter(function(p) {
+                    var key = p.x + "," + p.y;
+                    if (key in set) {
+                        return false;
+                    } else {
+                        set[key] = true;
+                        return true;
+                    }
+                });
+            })(points);
+            
+            var pi2 = Math.PI * 2;
+            
+            var temp1 = player.angle + player.gunRange.x;
+            var temp2 = player.angle + player.gunRange.y;
+            
+            // get all angles
+            var uniqueAngles = [];
+            for (var j = 0; j < uniquePoints.length; j++) {
+                var uniquePoint = uniquePoints[j];
+                var angle = player.angleTo(uniquePoint);
+                
+                if (temp2 > Math.PI && angle < 0)
+                    angle += pi2;
+                else if (temp1 < -Math.PI && angle > 0)
+                    angle -= pi2;
+                
+                if (angle > temp1 && angle < temp2) {
+                    uniqueAngles.push(angle-0.00001, angle+0.00001);
+                }
+            }
+            
+            uniqueAngles.push(temp1 - 0.00001);
+            uniqueAngles.push(temp2 + 0.00001);
+            
+            var intersects = [];
+            // rays in all directions
+            for (var j = 0; j < uniqueAngles.length; j++) {
+                var angle = uniqueAngles[j];
+
+                // calculate dx & dy from angle
+                var dx = Math.cos(angle);
+                var dy = Math.sin(angle);
+
+                // ray from center of screen to mouse
+                var ray = {
+                    p1: player,
+                    p2: new Vector2(player.x + dx, player.y + dy)
+                };
+
+                // find closest intersection
+                var closestIntersect = findClosestIntersection(ray);
+                closestIntersect.angle = angle;
+
+                // there is an intersect
+                if (closestIntersect != null) {
+                    intersects.push(closestIntersect);
+                }
+            }
+            
+            // sorting intersections by angle
+            intersects.sort(function(a,b){ return a.angle-b.angle; });
+            
+            for (var i = 0; i < intersects.length-1; i++) {
+                var line = new Line(player.x, player.y, intersects[i].x, intersects[i].y, intersects[i+1].x, intersects[i+1].y);
+                line.append(player.x, player.y);
+                raycasts.push(line);
+            }
+        }
+    </script>
+</body>
+</html>

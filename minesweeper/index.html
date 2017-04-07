@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <style>
+            body{
+                padding: 0;
+                margin: 0;
+            }
+        </style>
+    </head>
+
+<body>
+    <canvas id="myCanvas" width="800" height="600">
+        Your browser does not support the HTML5 canvas tag.
+    </canvas>
+    
+    <script src="https://rawgit.com/feldhaus/jsanvas/master/jsanvas.js"></script>
+    <script>
+        jsanvas.canvasID = "myCanvas"
+        
+        var tiles = [],
+            size = 40,
+            cols = 20,
+            rows = 15,
+            mines = 25;
+        var inputManager = new InputManager(jsanvas.canvas);
+        
+        var color1 = '#95ADAF', // default
+            color2 = '#E1E1E1', // opened
+            color3 = '#373938', // border
+            color4 = '#F8505C', // mine
+            color5 = '#6774FC'; // flag
+        
+        window.onload = function() {
+            var w = jsanvas.width;
+            var h = jsanvas.height;
+            var center = jsanvas.center;
+            
+            var i,j,k;
+            
+            // generate tiles
+            for (i = 0; i < cols; i++) {
+                tiles[i] = [];
+                for (j = 0; j < rows; j++) {
+                    tiles[i][j] = newTile(i,j);
+                }
+            }
+            
+            // sort mines
+            for (var k = 0; k < mines; k++) {
+                do {
+                    i = Math.floor(Math.random() * cols);
+                    j = Math.floor(Math.random() * rows);
+                }
+                while (tiles[i][j].mine);
+                tiles[i][j].mine = true;
+            }
+
+            // mouse events
+            inputManager.init();
+            
+            // render
+            jsanvas.render();
+        }
+        
+        // new tile
+        function newTile(col, row) {
+            var tile = new Rect(col*size+size/2, row*size+size/2, size, size);
+            tile.fillStyle = color1;
+            tile.strokeStyle = color3;
+            tile.mine = false;
+            tile.flag = false;
+            return tile;
+        }
+        
+        // returns neighbors
+        function getNeighbors(col, row) {
+            return [
+                {col:col-1, row:row-1}, {col:col-1, row:row+1}, {col:col-1, row:row},
+                {col:col+1, row:row-1}, {col:col+1, row:row+1}, {col:col+1, row:row},
+                {col:col,   row:row-1}, {col:col,   row:row+1}
+            ];
+        }
+        
+        // inside the board bounds
+        function inBounds(col, row) {
+            return col >=0 && col < cols && row >= 0 && row < rows;
+        }
+
+        // returns mines around
+        function minesAround(col, row) {
+            var total = 0;
+            var neighbors = getNeighbors(col, row);
+            for (var i = 0; i < neighbors.length; i++) {
+                var neighbor = neighbors[i];
+                if (inBounds(neighbor.col, neighbor.row) && tiles[neighbor.col][neighbor.row].mine) {
+                    total += 1;
+                }
+            }
+            return total;
+        }
+        
+        // take action in a tile
+        function takeAction(col, row, action='guess') {
+            // col and row in the bounds
+            if (!inBounds(col, row)) { return; }
+        
+            // get the tile
+            var tile = tiles[col][row];
+            
+            // it has already been visited
+            if (tile.adjacents !== undefined) { return; }
+        
+            // if action is flag, set tile as flagged
+            if (action == 'flag') {
+                tile.flag = !tile.flag;
+                tile.fillStyle = tile.flag ? color5 : color1;
+                return;
+            }
+            
+            // if the tile already has a flag, ignore
+            if (tile.flag) { return; }
+
+            // if the tile has a mine, explode
+            if (tile.mine) {
+                gameOver();
+                return;
+            }
+            
+            // see tiles around
+            tile.adjacents = minesAround(col, row);
+            if (tile.adjacents === 0) {
+                var neighbors = getNeighbors(col, row);
+                for (var i = 0; i < neighbors.length; i++) {
+                    takeAction(neighbors[i].col, neighbors[i].row);
+                }
+            }
+            
+            // change the color
+            tile.fillStyle = color2;
+
+            // if there are adjacent mines
+            if (tile.adjacents > 0) {
+                var label = new Text(0, 5, tile.adjacents);
+                tile.insert(label);
+                tile.label = label;
+            }
+        }
+        
+        // returns uncleared tiles
+        function getUnclearedTiles() {
+            var total = 0;
+            for (i = 0; i < cols; i++) {
+                for (j = 0; j < rows; j++) {
+                    total += tiles[i][j].adjacents === undefined ? 1 : 0;
+                }
+            }
+            return total;
+        }
+        
+        // show mines
+        function gameOver() {
+            console.log("player lose");
+            for (i = 0; i < cols; i++) {
+                for (j = 0; j < rows; j++) {
+                    if (tiles[i][j].mine) {
+                        tiles[i][j].fillStyle = color4;
+                    }
+                }
+            }
+        }
+        
+        // input management
+        function InputManager(canvas) {
+            this.canvas = canvas;
+        }
+
+        // add listeners
+        InputManager.prototype.init = function() {
+            this.canvas.addEventListener('mousedown', this.onMouseDown.bind(this), false);
+            this.canvas.addEventListener('contextmenu', this.onContextMenu.bind(this), false);
+        }
+
+        // on mouse down
+        InputManager.prototype.onMouseDown = function(e) {
+            var rect = this.canvas.getBoundingClientRect();
+            
+            // get col and row
+            var col = Math.floor((e.clientX - rect.left) / size);
+            var row = Math.floor((e.clientY - rect.top) / size);
+            
+            // button '1' is mouse left and '2' is mouse right
+            takeAction(col, row, e.button === 2 ? 'flag' : 'guess');
+            
+            if (getUnclearedTiles() != mines) {
+                console.log("player won");
+            }
+            
+            // render
+            jsanvas.render();
+        }
+        
+        // ignore context menu
+        InputManager.prototype.onContextMenu = function(e) {
+            e.preventDefault();
+            return false;
+        }
+    </script>
+</html>
